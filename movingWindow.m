@@ -12,13 +12,15 @@ fs_new = fnyquist_new * 2;
 % Define the channels to process
 % [28, 51, 19, 1, 35, 30];
 channelsToProcess = [28, 51, 19, 1, 35, 30];
+%channelsToProcess = 1:length(EEG3);
 
 %% Parameters for nonlinear prediction error
 embedding_dim = 6;
 num_neighbors = 3;
 theiler_correction = 30;
 prediction_horizon = 2;
-time_delays = 1:3:49;
+time_delays = 19; %1:3:49;
+tau = 19;
 numTimeDelays = length(time_delays);
 
 %% parallel workers setup
@@ -30,10 +32,10 @@ numWorkers = poolObj.NumWorkers;
 fprintf('Number of workers in the current pool: %d\n', numWorkers);
 
 % Preallocate results matrix for all channels
-prediction_error_all_channels = zeros(length(channelsToProcess), numel(downsampledFilteredSignalSegments) * 2, numTimeDelays);
+prediction_error_all_channels = zeros(length(channelsToProcess), numel(downsampledFilteredSignalSegments) * 2, 1); %numTimeDelays);
 
 %% Loop over the selected channels
-for chIdx = 1:length(channelsToProcess)
+parfor chIdx = 1:length(channelsToProcess)
     channel = channelsToProcess(chIdx);
     disp(['Processing Channel: ', num2str(channel)]);
     
@@ -79,27 +81,26 @@ for chIdx = 1:length(channelsToProcess)
     end
     
     %% NONLINEAR PREDICTION ERROR
-    prediction_error = zeros(size(surrogates_matrix, 1), numTimeDelays);
+    prediction_error = zeros(size(surrogates_matrix, 1), 1);
     
     currentDateTime = datetime;
     disp(['Current date and time before execution: ', char(currentDateTime)]);
     %% Parallel Processing Setup
     % Assuming gcp('nocreate') and related setup is done outside the loop
-    parfor tauIdx = 1:numTimeDelays
-        tic;
-        
-        tau = time_delays(tauIdx);
-        tempPredictionError = zeros(size(surrogates_matrix, 1), 1);
-        
-        for signal_idx = 1:size(surrogates_matrix, 1)
-            tempPredictionError(signal_idx) = CalculateError(surrogates_matrix(signal_idx,:), embedding_dim, tau, num_neighbors, theiler_correction, prediction_horizon);
-        end
-        
-        prediction_error(:, tauIdx) = tempPredictionError;
-        
-        elapsedTime = toc;
-        fprintf('Channel %d, Loop for tau=%d execution time: %.2f seconds.\n', channel, tau, elapsedTime);
+    %parfor segmentIdx = 1:numSegments
+    tic;
+       
+    tempPredictionError = zeros(size(surrogates_matrix, 1), 1);
+    
+    for signal_idx = 1:size(surrogates_matrix, 1)
+        tempPredictionError(signal_idx) = CalculateError(surrogates_matrix(signal_idx,:), embedding_dim, tau, num_neighbors, theiler_correction, prediction_horizon);
     end
+    
+    prediction_error = tempPredictionError;
+    
+    elapsedTime = toc;
+    fprintf('Channel %d, execution time: %.2f seconds.\n', channel, elapsedTime);
+    %end
     
     %% Store the results
     prediction_error_all_channels(chIdx, :, :) = prediction_error;
@@ -110,7 +111,7 @@ end
 
 disp('All channels processed.');
 
-%% VISUALISE RESUOLTS
+%% VISUALISE RESULTS
 
 % Initialize the diff_matrix with zeros
 % initialize a matrix
@@ -118,14 +119,14 @@ disp('All channels processed.');
 % Assuming 'prediction_error' has errors for 6 channels, and you're interested in some form of difference calculation
 
 numChannels = length(channelsToProcess); % Number of channels
-numComparisons = size(prediction_error, 2) - 1; % Assuming comparison between successive columns
+numComparisons = size(prediction_error, 1) / 2; % Assuming comparison between successive columns
 diff_matrix = zeros(numChannels, numComparisons); % Adjusted for a difference per channel for each comparison
 
 % Loop over each channel
 for ch = 1:numChannels
     % Calculate differences between successive elements for each channel
     for col = 1:numComparisons
-        diff_matrix(ch, col) = sqrt(sum((prediction_error(ch, col + 1) - prediction_error(ch, col)).^2));
+        diff_matrix(ch, col) = sqrt(sum((prediction_error_all_channels(ch, col * 2) - prediction_error_all_channels(ch, col *2 -1)).^2));
     end
 end
 
