@@ -11,8 +11,8 @@ fs_new = fnyquist_new * 2;
 
 % Define the channels to process
 % [28, 51, 19, 1, 35, 30];
-channelsToProcess = [28, 51, 19, 1, 35, 30];
-%channelsToProcess = 1:length(EEG3);
+% channelsToProcess = [28, 51, 19, 1, 35, 30];
+channelsToProcess = 1:64;
 
 %% Parameters for nonlinear prediction error
 embedding_dim = 6;
@@ -126,13 +126,13 @@ diff_matrix = zeros(numChannels, numComparisons); % Adjusted for a difference pe
 for ch = 1:numChannels
     % Calculate differences between successive elements for each channel
     for col = 1:numComparisons
-        diff_matrix(ch, col) = sqrt(sum((prediction_error_all_channels(ch, col * 2) - prediction_error_all_channels(ch, col *2 -1)).^2));
+        diff_matrix(ch, col) = abs(prediction_error_all_channels(ch, col * 2)-prediction_error_all_channels(ch, col *2 -1));
     end
 end
 
 % Plot the matrix
 figure;
 imagesc(diff_matrix);
-title('Distance Matrix of Signal and His Surrogate');
+title('Difference Matrix of Signal and His Surrogate');
 colorbar;
 
